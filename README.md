@@ -1,8 +1,26 @@
 # Project 2：即時音訊 callback 與演算法 I/O
 
-已建立麥克風 → C++ callback → 喇叭的 Project 2 管線，並直接重用
-`quant-architect/include/quant/ipc/spsc_ring.hpp`。目前 DSP 是直通，偵測器是空實作；
+已建立麥克風 → C++ callback → 喇叭的 Project 2 管線，核心集中在可獨立建置的
+`components/project2`。SPSC 原始碼已複製到元件內，建置及執行都不依賴 `quant-architect`。
+目前 DSP 是直通，偵測器是空實作；
 IIR、嘯叫偵測及參數平滑演算法由公開介面接入。
+
+## 元件結構
+
+| 路徑 | 職責 |
+|---|---|
+| `components/project2/include/rt_audio/project2/types.hpp` | 音訊、參數、時間與統計資料格式 |
+| `components/project2/include/rt_audio/project2/processor.hpp` | 即時 DSP／IIR／smoother 接入介面與直通實作 |
+| `components/project2/include/rt_audio/project2/analysis.hpp` | 分析器與參數發布介面 |
+| `components/project2/include/rt_audio/project2/engine.hpp`、`src/engine.cpp` | Callback 引擎、兩條 SPSC 與 block 邊界更新 |
+| `components/project2/include/rt_audio/project2/worker.hpp`、`src/worker.cpp` | 分析執行緒與生命週期 |
+| `components/project2/include/rt_audio/project2/detail/spsc_ring.hpp` | 本地 SPSC 實作副本 |
+| `components/project2/backends/portaudio/portaudio_device.cpp` | 可選的麥克風／喇叭裝置接線 |
+| `apps/` | 命令列設定、元件組合與模擬範例 |
+
+表中 `src/` 相對於 `components/project2`。元件對外提供 `rt_audio::project2` 與可選的
+`rt_audio::project2_portaudio` CMake targets；接入方式見 [元件說明](components/project2/README.md)。
+`#include <rt_audio/project2.hpp>` 與原有 C++ 類別名稱仍可使用。
 
 ## 資料流
 
@@ -17,21 +35,20 @@ flowchart LR
     Commands -->|block 邊界套用| DSP
 ```
 
-兩個 queue 都使用同一份 `quant::ipc::SpscRing` template，各自有獨立 storage。
+兩個 queue 都使用本地的 `rt_audio::detail::SpscRing` template，各自有獨立 storage。
 第二條 queue 的內容是**參數命令，不是輸出音訊**。播放不經過 analysis worker。
-本階段使用同一 process 中的執行緒，不依賴 quant 專案的 Linux SHM manager，
-也不建置或修改 quant 專案。macOS 上的驗證只涵蓋這個 header 的 process 內使用。
+本階段使用同一 process 中的執行緒。SPSC 副本保留原始來源與 commit 註記，
+僅調整 namespace 與平台說明，queue 演算法未變更。
 
 ## 快速建置
 
-需要 GCC／Clang、C++20、Make。預設從 `../../quant-architect` 取得 SPSC header；
-若目錄不同，傳入 `QUANT_ARCHITECT_DIR`。
+需要 GCC／Clang、C++20、Make。核心建置只使用此專案內的原始碼，不需要其他 checkout。
 
 ```bash
 make -j2
 make test
-# 自訂相依目錄
-make QUANT_ARCHITECT_DIR=/path/to/quant-architect
+# 只建立核心靜態函式庫
+make component
 ```
 
 `make test` 執行自動測試和 `project2_sim`。模擬器以合成音訊呼叫同一個 callback
@@ -68,7 +85,7 @@ callback 週期約 2.67 ms，尚須計入裝置延遲及排程餘裕。
 ### CMake
 
 ```bash
-cmake -S . -B build-cmake -DQUANT_ARCHITECT_DIR=/path/to/quant-architect
+cmake -S . -B build-cmake
 cmake --build build-cmake -j2
 ctest --test-dir build-cmake --output-on-failure
 ```
@@ -78,7 +95,9 @@ ctest --test-dir build-cmake --output-on-failure
 
 ## 公開 I/O ports
 
-介面集中在 `include/rt_audio/project2.hpp`。
+完整入口是 `components/project2/include/rt_audio/project2.hpp`；也可以依需求只引入
+`project2/processor.hpp`、`project2/analysis.hpp` 等個別介面。PortAudio 公開介面是
+`project2/portaudio_device.hpp`，不會把 `portaudio.h` 洩漏給呼叫端。
 
 | Port | 呼叫端／執行緒 | 輸入與輸出 |
 |---|---|---|
@@ -180,7 +199,7 @@ Queue 不擴容、不覆寫尚未讀取的資料、不在執行中 reset。Callb
 
 ## 驗證範圍
 
-`tests/project2_tests.cpp` 涵蓋 queue 邊界／回繞／跨執行緒資料完整性、音訊直通與格式邊界、
+`components/project2/tests/project2_tests.cpp` 涵蓋 queue 邊界／回繞／跨執行緒資料完整性、音訊直通與格式邊界、
 分析丟棄後的時間缺口、參數驗證與有界合併，以及 worker 啟停／錯誤傳遞。
 功能測試與 sanitizer 檢查不能取代真實音訊裝置、最壞執行時間與端到端延遲量測。
 
@@ -188,6 +207,9 @@ Queue 不擴容、不覆寫尚未讀取的資料、不在執行中 reset。Callb
 
 - Make 嚴格建置及 10 組核心測試通過，包含 100,000 筆跨執行緒 queue 傳遞。
 - 合成音訊端到端範例通過；CMake Release 含 live adapter 建置成功，CTest 2/2 通過。
+- 重構後將 `components/project2` 單獨複製至另一個目錄，獨立建置及測試通過；外部
+  `add_subdirectory()` consumer 也通過。8 個公開／內部 header 可各自編譯，
+  核心編譯命令沒有 quant-architect 或 PortAudio include 路徑。
 - PortAudio adapter 已完成編譯連結，`--help` 與無效 CLI 參數拒絕已驗證。
 - 尚未開啟真實麥克風／喇叭，未量測裝置延遲或驗證抑制效果。
 - ASan/UBSan 與 TSan 無法完成驗證：此主機連空白 `main()` 的 sanitizer 探針也分別

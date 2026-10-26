@@ -91,7 +91,7 @@ rt_audio::ParameterSnapshot parameters(std::uint64_t revision) {
 }
 
 void test_ring_boundaries_and_rollover() {
-    quant::ipc::SpscRing<std::uint64_t, 4> queue(
+    rt_audio::detail::SpscRing<std::uint64_t, 4> queue(
         std::numeric_limits<std::uint64_t>::max() - 1);
     std::uint64_t output = 999;
     CHECK(!queue.try_pop(output));
@@ -308,7 +308,7 @@ struct QueueMessage {
 };
 
 void test_concurrent_ring_payload_integrity() {
-    quant::ipc::SpscRing<QueueMessage, 64> queue;
+    rt_audio::detail::SpscRing<QueueMessage, 64> queue;
     constexpr std::uint64_t count = 100000;
     std::atomic<bool> aborted{false};
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);

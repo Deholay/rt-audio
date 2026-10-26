@@ -1,7 +1,6 @@
-#include <rt_audio/project2.hpp>
+#include <rt_audio/project2/engine.hpp>
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <stdexcept>
 
@@ -9,14 +8,6 @@ namespace rt_audio {
 
 static_assert(std::atomic<std::uint64_t>::is_always_lock_free,
               "Audio counters must be native lock-free atomics");
-
-void PassthroughProcessor::process(const ProcessBlock& block) noexcept {
-    if (block.input != block.output) {
-        std::copy_n(block.input,
-                    static_cast<std::size_t>(block.frames) * block.channels,
-                    block.output);
-    }
-}
 
 Project2::Project2(StreamConfig config, RealtimeProcessor& processor)
     : config_(config), processor_(processor) {
@@ -126,56 +117,6 @@ Statistics Project2::statistics() const noexcept {
         invalid_callbacks_.load(std::memory_order_relaxed),
         input_overflows_.load(std::memory_order_relaxed),
         output_underflows_.load(std::memory_order_relaxed)};
-}
-
-AnalysisWorker::AnalysisWorker(Project2& engine, AnalysisHandler& handler) noexcept
-    : engine_(engine), handler_(handler) {}
-
-AnalysisWorker::~AnalysisWorker() { stop(); }
-
-void AnalysisWorker::start() {
-    if (started_) throw std::logic_error("AnalysisWorker is single-use");
-    handler_.prepare(engine_.config());
-    running_.store(true, std::memory_order_relaxed);
-    try {
-        thread_ = std::thread(&AnalysisWorker::run, this);
-        started_ = true;
-    } catch (...) {
-        running_.store(false, std::memory_order_relaxed);
-        throw;
-    }
-}
-
-void AnalysisWorker::stop() noexcept {
-    running_.store(false, std::memory_order_relaxed);
-    if (thread_.joinable()) thread_.join();
-}
-
-bool AnalysisWorker::failed() const noexcept {
-    return failed_.load(std::memory_order_acquire);
-}
-
-void AnalysisWorker::rethrow_if_failed() const {
-    if (thread_.joinable()) throw std::logic_error("Stop worker before reading failure");
-    if (failure_) std::rethrow_exception(failure_);
-}
-
-void AnalysisWorker::run() noexcept {
-    try {
-        AnalysisBlock block{};
-        while (running_.load(std::memory_order_relaxed)) {
-            if (engine_.try_read_analysis(block)) {
-                handler_.on_audio(block, engine_);
-            } else {
-                // Only the background worker sleeps; the audio thread never waits.
-                std::this_thread::sleep_for(std::chrono::microseconds(200));
-            }
-        }
-    } catch (...) {
-        failure_ = std::current_exception();
-        failed_.store(true, std::memory_order_release);
-        running_.store(false, std::memory_order_relaxed);
-    }
 }
 
 } // namespace rt_audio
