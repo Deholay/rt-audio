@@ -1,4 +1,23 @@
-# Project 2：即時音訊 callback 與演算法 I/O
+# 即時音訊：Project 2 與 Project 3
+
+兩個專案各自提供可獨立建置的 C++20 元件與演算法 I/O 介面：
+
+| 專案 | 架構 | 元件說明 |
+|---|---|---|
+| Project 2：聲學回授抑制 | callback DSP＋背景分析，SPSC 回傳參數 | [Project 2](components/project2/README.md) |
+| Project 3：按鍵噪音抑制 | input SPSC → 背景音訊處理 → output SPSC，固定延遲＋原音備援 | [Project 3](components/project3/README.md) |
+
+兩者目前都以直通演算法驗證接線，實際抑制演算法由插件介面接入。`make test` 執行兩者的
+測試與模擬器，`make live` 建立 `project2_live` 與 `project3_live`。
+
+Project 3 可先執行 `./build/project3_sim`，或用 `./build/project3_live --help` 查看裝置選項。
+公開入口為 `components/project3/include/rt_audio/project3.hpp`，namespace 是
+`rt_audio::project3`，CMake target 是 `rt_audio::project3`。
+
+以下保留 Project 2 的完整操作與接入說明；Project 3 的時間對齊、演算法 port 及獨立建置方式
+請見上方元件說明。
+
+## Project 2：即時音訊 callback 與演算法 I/O
 
 已建立麥克風 → C++ callback → 喇叭的 Project 2 管線，核心集中在可獨立建置的
 `components/project2`。SPSC 原始碼已複製到元件內，建置及執行都不依賴 `quant-architect`。
