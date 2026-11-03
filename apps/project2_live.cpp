@@ -1,4 +1,5 @@
 #include <rt_audio/project2.hpp>
+#include <rt_audio/ahs.hpp>
 
 #include <rt_audio/project2/portaudio_device.hpp>
 
@@ -25,6 +26,9 @@ struct Options {
     int input_device = -1;
     int output_device = -1;
     double seconds = 10.0;
+    std::string processor = "passthrough";
+    float gain = 0.1F;
+    double latency_ms = 0.0; // 0 = device default low latency
     bool list_devices = false;
     bool help = false;
 };
@@ -32,7 +36,7 @@ struct Options {
 void print_usage() {
     std::cout
         << "Project 2 microphone -> callback processor -> speaker\n"
-        << "The supplied processor is passthrough; suppression is an extension port.\n\n"
+        << "Default processor is passthrough; --processor selects an AHS release.\n\n"
         << "Usage: project2_live [options]\n"
         << "  --help                 Show this help without opening audio devices\n"
         << "  --list-devices         Enumerate PortAudio devices and exit\n"
@@ -42,8 +46,19 @@ void print_usage() {
         << "  --sample-rate HZ       Sample rate, 8000..384000 (default: 48000)\n"
         << "  --frames N             Frames per callback, 1..2048 (default: 128)\n"
         << "  --seconds N            Run duration, >0 and <=86400 (default: 10)\n"
+        << "  --processor NAME       passthrough, latest, or an AHS release name\n"
+        << "                         (AHS needs --sample-rate 48000; releases below)\n"
+        << "  --gain G               AHS output gain, 0..1 (default: 0.1, as AHS)\n"
+        << "  --latency MS           Device buffering request, >0 and <=1000 ms\n"
+        << "                         (default: device low latency; result is printed)\n"
         << "Ctrl-C stops playback and joins the analysis worker.\n"
-        << "Use headphones for the passthrough test to avoid acoustic feedback.\n";
+        << "Use headphones for the passthrough test to avoid acoustic feedback.\n"
+        << "AHS releases (oldest first):\n";
+    for (const auto& release : rt_audio::ahs::releases()) {
+        std::cout << "  " << release.name << "  [" << release.architecture << "]  "
+                  << release.source_branch << " " << release.source_commit << "\n    "
+                  << release.configuration << '\n';
+    }
 }
 
 int parse_integer(std::string_view value, std::string_view option) {
@@ -79,7 +94,8 @@ Options parse_options(int argc, char** argv) {
             options.list_devices = true;
         } else {
             if (argument != "--input" && argument != "--output" && argument != "--channels" &&
-                argument != "--sample-rate" && argument != "--frames" && argument != "--seconds") {
+                argument != "--sample-rate" && argument != "--frames" && argument != "--seconds" &&
+                argument != "--processor" && argument != "--gain" && argument != "--latency") {
                 throw std::invalid_argument("Unknown option: " + std::string(argument));
             }
             if (++index == argc) {
@@ -96,6 +112,20 @@ Options parse_options(int argc, char** argv) {
             }
             if (argument == "--sample-rate") options.config.sample_rate = parse_number(value, argument);
             if (argument == "--seconds") options.seconds = parse_number(value, argument);
+            if (argument == "--processor") options.processor = std::string(value);
+            if (argument == "--latency") options.latency_ms = parse_number(value, argument);
+            if (argument == "--gain") {
+                std::size_t consumed = 0;
+                try {
+                    options.gain = std::stof(std::string(value), &consumed);
+                } catch (const std::exception&) {
+                    consumed = 0;
+                }
+                if (consumed != value.size() || !std::isfinite(options.gain) ||
+                    options.gain < 0.0F || options.gain > 1.0F) {
+                    throw std::invalid_argument("--gain requires a number in [0, 1]");
+                }
+            }
         }
     }
     if (options.config.channels < 1 || options.config.channels > rt_audio::max_channels) {
@@ -108,6 +138,7 @@ Options parse_options(int argc, char** argv) {
         throw std::invalid_argument("--sample-rate must be between 8000 and 384000 Hz");
     }
     if (options.seconds > 86400.0) throw std::invalid_argument("--seconds exceeds 86400");
+    if (options.latency_ms > 1000.0) throw std::invalid_argument("--latency exceeds 1000 ms");
     return options;
 }
 
@@ -123,6 +154,23 @@ void list_devices() {
     }
     if (devices.empty()) std::cout << "No audio devices available.\n";
 }
+
+// Passthrough wiring in the same Session shape as the AHS releases.
+class PassthroughSession final : public rt_audio::ahs::Session {
+public:
+    explicit PassthroughSession(const rt_audio::StreamConfig& config)
+        : engine_(config, processor_), worker_(engine_, handler_) {}
+    rt_audio::AudioCallback& callback() noexcept override { return engine_; }
+    void start() override { worker_.start(); }
+    void stop() noexcept override { worker_.stop(); }
+    void rethrow_if_failed() const override { worker_.rethrow_if_failed(); }
+
+private:
+    rt_audio::PassthroughProcessor processor_;
+    rt_audio::Project2 engine_;
+    rt_audio::NoopAnalysisHandler handler_;
+    rt_audio::AnalysisWorker worker_;
+};
 
 void print_statistics(const rt_audio::Statistics& stats) {
     std::cout << "callbacks=" << stats.callbacks << " frames=" << stats.processed_frames
@@ -142,12 +190,17 @@ int run(const Options& options) {
         return 0;
     }
 
-    rt_audio::PassthroughProcessor processor;
-    auto engine = std::make_unique<rt_audio::Project2>(options.config, processor);
-    rt_audio::NoopAnalysisHandler handler;
-    rt_audio::AnalysisWorker worker(*engine, handler);
-    // Declared after the worker: exception unwinding stops device callbacks first.
-    rt_audio::PortAudioDevice device(*engine, {options.input_device, options.output_device});
+    const bool passthrough = options.processor == "passthrough";
+    // Session creation prepares the processor, which validates the format.
+    auto session = passthrough
+                       ? std::unique_ptr<rt_audio::ahs::Session>(
+                             std::make_unique<PassthroughSession>(options.config))
+                       : rt_audio::ahs::make_session(options.processor, options.config,
+                                                     options.gain);
+    // Declared after the session: exception unwinding stops device callbacks first.
+    rt_audio::PortAudioDevice device(session->callback(),
+                                     {options.input_device, options.output_device,
+                                      options.latency_ms / 1000.0});
     const auto& info = device.info();
     std::cout << "Input: " << info.input_name
               << "\nOutput: " << info.output_name
@@ -160,10 +213,17 @@ int run(const Options& options) {
                   << " ms output=" << info.output_latency * 1000.0
                   << " ms (not a measured acoustic round-trip latency)\n";
     }
-    std::cout << "Passthrough only. Use headphones. Running for " << options.seconds << " seconds; Ctrl-C to stop.\n";
+    if (passthrough) {
+        std::cout << "Passthrough only. Use headphones.";
+    } else {
+        const auto name = options.processor == "latest" ? rt_audio::ahs::releases().back().name
+                                                        : std::string_view(options.processor);
+        std::cout << "AHS release " << name << ", output gain " << options.gain << '.';
+    }
+    std::cout << " Running for " << options.seconds << " seconds; Ctrl-C to stop.\n";
 
     std::signal(SIGINT, request_stop);
-    worker.start();
+    session->start();
     device.start();
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::duration<double>(options.seconds);
     bool stopped_early = false;
@@ -175,9 +235,9 @@ int run(const Options& options) {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
     device.stop();
-    worker.stop();
-    print_statistics(engine->statistics());
-    worker.rethrow_if_failed();
+    session->stop();
+    print_statistics(session->callback().statistics());
+    session->rethrow_if_failed();
     if (device.aborted()) {
         throw std::runtime_error("Audio callback rejected an invalid host buffer");
     }

@@ -1,4 +1,5 @@
 CXX ?= c++
+CC ?= cc
 AR ?= ar
 BUILD_DIR ?= build
 COMPONENT_DIR := components/project2
@@ -14,9 +15,21 @@ CORE_LIBRARY := $(BUILD_DIR)/librt_audio_project2.a
 DEVICE_OBJECT := $(BUILD_DIR)/project2/portaudio_device.o
 DEVICE_LIBRARY := $(BUILD_DIR)/librt_audio_project2_portaudio.a
 
+# Versioned AHS releases (release/ahs/). Vendored upstream files are -isystem so
+# their warnings do not fail -Werror; the Speex prefix keeps C symbols per release.
+AHS_RELEASE := ahs-v7-c0291dd1e
+AHS_UPSTREAM := release/ahs/$(AHS_RELEASE)/upstream
+AHS_FLAGS := -Irelease/ahs/include -isystem $(AHS_UPSTREAM)/src -isystem $(AHS_UPSTREAM)/apps \
+  -isystem $(AHS_UPSTREAM)/third_party/speexdsp \
+  -DOUTSIDE_SPEEX -DRANDOM_PREFIX=rt_audio_ahs_v7_c0291dd1e_speex -DFLOATING_POINT
+AHS_OBJECTS := $(BUILD_DIR)/release/ahs/registry.o $(BUILD_DIR)/release/ahs/$(AHS_RELEASE)/processor.o \
+  $(BUILD_DIR)/release/ahs/$(AHS_RELEASE)/resample.o \
+  $(BUILD_DIR)/release/ahs/ahs-v7-split-c0291dd1e/split.o
+AHS_LIBRARY := $(BUILD_DIR)/librt_audio_ahs.a
+
 .PHONY: all component test live
-all: $(BUILD_DIR)/project2_sim $(BUILD_DIR)/project2_tests $(BUILD_DIR)/project3_sim $(BUILD_DIR)/project3_tests
-component: $(CORE_LIBRARY) $(BUILD_DIR)/librt_audio_project3.a
+all: $(BUILD_DIR)/project2_sim $(BUILD_DIR)/project2_tests $(BUILD_DIR)/project3_sim $(BUILD_DIR)/project3_tests $(AHS_LIBRARY)
+component: $(CORE_LIBRARY) $(BUILD_DIR)/librt_audio_project3.a $(AHS_LIBRARY)
 
 $(BUILD_DIR)/project2/%.o: $(COMPONENT_DIR)/src/%.cpp
 	@mkdir -p "$(dir $@)"
@@ -48,10 +61,21 @@ $(DEVICE_OBJECT): $(COMPONENT_DIR)/backends/portaudio/portaudio_device.cpp
 $(DEVICE_LIBRARY): $(DEVICE_OBJECT)
 	$(AR) rcs $@ $^
 
-$(BUILD_DIR)/project2_live: apps/project2_live.cpp $(DEVICE_LIBRARY) $(CORE_LIBRARY)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ $(LDFLAGS) $(PORTAUDIO_LIBS) -o $@
+$(BUILD_DIR)/release/ahs/%.o: release/ahs/%.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(CPPFLAGS) $(AHS_FLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
--include $(CORE_OBJECTS:.o=.d) $(DEVICE_OBJECT:.o=.d)
+$(BUILD_DIR)/release/ahs/$(AHS_RELEASE)/resample.o: $(AHS_UPSTREAM)/third_party/speexdsp/resample.c
+	@mkdir -p "$(dir $@)"
+	$(CC) $(AHS_FLAGS) -O2 -g -c $< -o $@
+
+$(AHS_LIBRARY): $(AHS_OBJECTS)
+	$(AR) rcs $@ $^
+
+$(BUILD_DIR)/project2_live: apps/project2_live.cpp $(DEVICE_LIBRARY) $(AHS_LIBRARY) $(CORE_LIBRARY)
+	$(CXX) $(CPPFLAGS) -Irelease/ahs/include $(CXXFLAGS) $^ $(LDFLAGS) $(PORTAUDIO_LIBS) -o $@
+
+-include $(CORE_OBJECTS:.o=.d) $(DEVICE_OBJECT:.o=.d) $(AHS_OBJECTS:.o=.d)
 
 PROJECT3_DIR := components/project3
 PROJECT3_OBJECTS := $(addprefix $(BUILD_DIR)/project3/,engine.o processor.o worker.o)

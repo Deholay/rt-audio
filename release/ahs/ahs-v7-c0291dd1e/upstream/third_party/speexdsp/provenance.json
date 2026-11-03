@@ -1,0 +1,33 @@
+{
+  "repository": "https://github.com/xiph/speexdsp",
+  "commit": "7a158783df74efe7c2d1c6ee8363c1e695c71226",
+  "license": "BSD-3-Clause",
+  "modifications": [],
+  "compile_definitions": [
+    "OUTSIDE_SPEEX",
+    "RANDOM_PREFIX=ahs_speex",
+    "FLOATING_POINT"
+  ],
+  "files": [
+    {
+      "path": "resample.c",
+      "upstream_path": "libspeexdsp/resample.c",
+      "sha256": "c4ec3bc71fc4414d7ebd62fc745290c7b5b06b149a05dd70cf72553bc57c8c76"
+    },
+    {
+      "path": "speex_resampler.h",
+      "upstream_path": "include/speex/speex_resampler.h",
+      "sha256": "7e439ec0dd30c32216b3ced17135f8992e5aaf53389d3f5996a7d900c453e65f"
+    },
+    {
+      "path": "arch.h",
+      "upstream_path": "libspeexdsp/arch.h",
+      "sha256": "102f6a14a95f8ae0bcfc69270f3a9e3fbba08b63bba688ca524f71e3faa48c23"
+    },
+    {
+      "path": "COPYING",
+      "upstream_path": "COPYING",
+      "sha256": "2654a4264b2bfe298dedc508748d140111840c315cc8eb646a3a68c13fa75b01"
+    }
+  ]
+}

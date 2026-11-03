@@ -8,11 +8,15 @@
 
 namespace rt_audio {
 
-class Project2;
+class AudioCallback;
 
 struct DeviceSelection {
     int input_device = -1; // -1 selects the system default
     int output_device = -1;
+    // Device buffering request in seconds, applied to both directions; 0 uses
+    // each device's default low latency. PortAudio may round it; read the
+    // result from DeviceStreamInfo::input_latency / output_latency.
+    double suggested_latency = 0.0;
 };
 
 struct DeviceInfo {
@@ -45,7 +49,7 @@ struct DeviceStreamInfo {
 // aborts/closes the stream even when the caller exits through an exception.
 class PortAudioDevice final {
 public:
-    explicit PortAudioDevice(Project2& engine, DeviceSelection selection = {});
+    explicit PortAudioDevice(AudioCallback& engine, DeviceSelection selection = {});
     ~PortAudioDevice();
     PortAudioDevice(const PortAudioDevice&) = delete;
     PortAudioDevice& operator=(const PortAudioDevice&) = delete;

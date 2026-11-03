@@ -8,14 +8,17 @@
 
 namespace rt_audio {
 
-class Project2;
+template <class Protocol>
+class Engine;
 
-class AnalysisWorker final {
+template <class Protocol>
+class Worker final {
 public:
-    AnalysisWorker(Project2& engine, AnalysisHandler& handler) noexcept;
-    ~AnalysisWorker();
-    AnalysisWorker(const AnalysisWorker&) = delete;
-    AnalysisWorker& operator=(const AnalysisWorker&) = delete;
+    using Handler = typename Protocol::Handler;
+    Worker(Engine<Protocol>& engine, Handler& handler) noexcept;
+    ~Worker();
+    Worker(const Worker&) = delete;
+    Worker& operator=(const Worker&) = delete;
     // Control-thread lifecycle only. One start per worker instance.
     void start();
     void stop() noexcept;
@@ -25,13 +28,18 @@ public:
 
 private:
     void run() noexcept;
-    Project2& engine_;
-    AnalysisHandler& handler_;
+    Engine<Protocol>& engine_;
+    Handler& handler_;
     std::atomic<bool> running_{false};
     std::atomic<bool> failed_{false};
     bool started_ = false;
     std::thread thread_;
     std::exception_ptr failure_;
 };
+
+struct DefaultProtocol;
+// Definitions live in detail/worker_impl.hpp; worker.cpp instantiates this one.
+using AnalysisWorker = Worker<DefaultProtocol>;
+extern template class Worker<DefaultProtocol>;
 
 } // namespace rt_audio

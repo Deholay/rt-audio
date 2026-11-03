@@ -4,13 +4,22 @@
 
 namespace rt_audio {
 
-class ParameterSink {
+// Worker -> callback command port, generic over a protocol's command type.
+template <class Command>
+class CommandSink {
 public:
-    virtual ~ParameterSink() = default;
+    virtual ~CommandSink() = default;
     // Sole producer: analysis worker. False means invalid/reordered command or
     // full queue. Caller retains ownership and may retry a full-queue failure.
-    [[nodiscard]] virtual bool try_submit_parameters(
-        const ParameterSnapshot& parameters) noexcept = 0;
+    [[nodiscard]] virtual bool try_submit(const Command& command) noexcept = 0;
+};
+
+// Command port of the default protocol (ParameterSnapshot commands).
+class ParameterSink : public CommandSink<ParameterSnapshot> {
+public:
+    [[nodiscard]] bool try_submit_parameters(const ParameterSnapshot& parameters) noexcept {
+        return try_submit(parameters);
+    }
 };
 
 class AnalysisHandler {

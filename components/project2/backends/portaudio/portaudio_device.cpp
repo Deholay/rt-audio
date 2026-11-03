@@ -43,7 +43,7 @@ public:
 };
 
 struct CallbackContext {
-    Project2& engine;
+    AudioCallback& engine;
     std::uint32_t channels;
     std::atomic<bool> aborted{false};
 };
@@ -74,7 +74,8 @@ int audio_callback(const void* input, void* output, unsigned long frames,
     return paAbort;
 }
 
-PaStreamParameters device_parameters(int requested_device, bool input, std::uint32_t channels) {
+PaStreamParameters device_parameters(int requested_device, bool input, std::uint32_t channels,
+                                     double suggested_latency) {
     PaStreamParameters parameters{};
     parameters.device = requested_device == -1
         ? (input ? Pa_GetDefaultInputDevice() : Pa_GetDefaultOutputDevice()) : requested_device;
@@ -89,7 +90,8 @@ PaStreamParameters device_parameters(int requested_device, bool input, std::uint
     }
     parameters.channelCount = static_cast<int>(channels);
     parameters.sampleFormat = paFloat32;
-    parameters.suggestedLatency = input ? device->defaultLowInputLatency : device->defaultLowOutputLatency;
+    parameters.suggestedLatency = suggested_latency > 0.0 ? suggested_latency
+        : input ? device->defaultLowInputLatency : device->defaultLowOutputLatency;
     return parameters;
 }
 
@@ -103,11 +105,16 @@ struct PortAudioDevice::Impl {
     AudioStream stream;
     DeviceStreamInfo information;
 
-    Impl(Project2& engine, DeviceSelection selection)
+    Impl(AudioCallback& engine, DeviceSelection selection)
         : context{engine, engine.config().channels} {
         const auto& config = engine.config();
-        auto input = device_parameters(selection.input_device, true, config.channels);
-        auto output = device_parameters(selection.output_device, false, config.channels);
+        if (!(selection.suggested_latency >= 0.0 && selection.suggested_latency <= 1.0)) {
+            throw std::invalid_argument("Suggested latency must be within 0..1 seconds");
+        }
+        auto input = device_parameters(selection.input_device, true, config.channels,
+                                       selection.suggested_latency);
+        auto output = device_parameters(selection.output_device, false, config.channels,
+                                        selection.suggested_latency);
         check_pa(Pa_IsFormatSupported(&input, &output, config.sample_rate), "Requested duplex format");
         information.input_name = Pa_GetDeviceInfo(input.device)->name;
         information.output_name = Pa_GetDeviceInfo(output.device)->name;
@@ -125,7 +132,7 @@ struct PortAudioDevice::Impl {
     }
 };
 
-PortAudioDevice::PortAudioDevice(Project2& engine, DeviceSelection selection)
+PortAudioDevice::PortAudioDevice(AudioCallback& engine, DeviceSelection selection)
     : impl_(std::make_unique<Impl>(engine, selection)) {}
 
 PortAudioDevice::~PortAudioDevice() = default;
