@@ -11,6 +11,12 @@ namespace rt_audio::ahs {
 namespace v7_c0291dd1e {
 std::unique_ptr<RealtimeProcessor> make(float output_gain);
 }
+namespace v7_lowlat_c0291dd1e {
+std::unique_ptr<RealtimeProcessor> make(float output_gain);
+}
+namespace v7_lowlat_fir_c0291dd1e {
+std::unique_ptr<RealtimeProcessor> make(float output_gain);
+}
 namespace v7_split_c0291dd1e {
 std::unique_ptr<Session> make_session(const StreamConfig& config, float output_gain);
 }
@@ -48,15 +54,30 @@ constexpr std::string_view v7_configuration =
     "Speex Q4 48<->16 kHz (AHS apps/live_pipeline.h)";
 
 // Append new releases at the end; keep both tables in the same order.
-constexpr std::array<Release, 2> table{{
+constexpr std::string_view v7_lowlat_configuration =
+    "AFC + notch bank + guard, 16 kHz, detection every 64 samples, shift off, growth PAPR "
+    "15 dB; Speex Q4 48<->16 kHz; no 64-sample pump wait (engine runs on available samples)";
+
+constexpr std::string_view v7_lowlat_fir_configuration =
+    "AFC + notch bank + guard, 16 kHz, detection every 64 samples, shift off, growth PAPR "
+    "15 dB; linear-phase FIR 48<->16 kHz (111/97 taps, 1.15+1.00 ms, AHS R2 criteria) "
+    "instead of Speex Q4; no 64-sample pump wait";
+
+constexpr std::array<Release, 4> table{{
     {"v7-c0291dd1e", "c0291dd1e2051d7934563bbc31daa36bbc044fb4",
      "codex/item2-round45-20261013", v7_configuration, "callback"},
     {"v7-split-c0291dd1e", "c0291dd1e2051d7934563bbc31daa36bbc044fb4",
      "codex/item2-round45-20261013", v7_configuration, "split"},
+    {"v7-lowlat-c0291dd1e", "c0291dd1e2051d7934563bbc31daa36bbc044fb4",
+     "codex/item2-round45-20261013", v7_lowlat_configuration, "callback"},
+    {"v7-lowlat-fir-c0291dd1e", "c0291dd1e2051d7934563bbc31daa36bbc044fb4",
+     "codex/item2-round45-20261013", v7_lowlat_fir_configuration, "callback"},
 }};
 constexpr std::array<Factories, table.size()> factories{{
     {&v7_c0291dd1e::make, nullptr},
     {nullptr, &v7_split_c0291dd1e::make_session},
+    {&v7_lowlat_c0291dd1e::make, nullptr},
+    {&v7_lowlat_fir_c0291dd1e::make, nullptr},
 }};
 
 // "latest" is the newest release, or the newest callback release when

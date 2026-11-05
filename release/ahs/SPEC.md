@@ -134,6 +134,19 @@ split 版目前紀錄（Apple M5／Apple clang，合成輸入，scratchpad 對�
 - 真實 worker 執行緒（callback 間隔 2.67 ms）：輸出和「固定晚一個 callback 套用」完全相同；0 遺失 hop、0 丟棄偵測。和 AHS 相比約 98% 樣本不同，相對誤差 −14 dB（無回授）到 −20 dB（嘯叫）。
 - 嘯叫抑制：和 callback 版大致相當，有時較好、有時較差（單一共振迴路模型，不能下結論；要比較須跑 MSG 矩陣）。
 
+### 1.7.1 已發布版本
+
+| 版本 | 架構 | 與 AHS | 程式碼音訊延遲（脈衝、無回授） |
+|---|---|---|---|
+| `v7-c0291dd1e` | callback | 逐位元組相同 | 6.667 ms（frames 32：7.333 ms） |
+| `v7-split-c0291dd1e` | split | 不同（偵測晚一個 callback） | 同 v7 管線 |
+| `v7-lowlat-c0291dd1e` | callback | 不同：pump 不等滿 64 點；無回授時等於 v7 平移 2.67 ms | 4.000 ms（所有 frames） |
+| `v7-lowlat-fir-c0291dd1e` | callback | 不同：lowlat ＋ 重取樣器換成線性相位 FIR（算法變更，通過 R2 準則） | **2.146 ms**（所有 frames） |
+
+`"latest"` 現在是 `v7-lowlat-fir-c0291dd1e`（`make_session` 與 `make_processor` 皆是）。
+
+**算法變更只在 rt-audio 時**：upstream 仍須原樣；變更放在 release 自己的轉接檔，並附設計／驗證腳本與結果（例：`ahs-v7-lowlat-fir-c0291dd1e/design_fir.py`），PROVENANCE 寫明改了哪一塊、對照哪一份 AHS 規格、哪些驗證未做。要與 AHS 逐位元組相同，指定 `v7-c0291dd1e`。
+
 ### 1.8 不在範圍內
 
 - 即時狀態輸出（是否偵測到嘯叫、陷波數量與頻率、guard 降幅）：目前沒有，排在之後。

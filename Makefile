@@ -24,7 +24,9 @@ AHS_FLAGS := -Irelease/ahs/include -isystem $(AHS_UPSTREAM)/src -isystem $(AHS_U
   -DOUTSIDE_SPEEX -DRANDOM_PREFIX=rt_audio_ahs_v7_c0291dd1e_speex -DFLOATING_POINT
 AHS_OBJECTS := $(BUILD_DIR)/release/ahs/registry.o $(BUILD_DIR)/release/ahs/$(AHS_RELEASE)/processor.o \
   $(BUILD_DIR)/release/ahs/$(AHS_RELEASE)/resample.o \
-  $(BUILD_DIR)/release/ahs/ahs-v7-split-c0291dd1e/split.o
+  $(BUILD_DIR)/release/ahs/ahs-v7-split-c0291dd1e/split.o \
+  $(BUILD_DIR)/release/ahs/ahs-v7-lowlat-c0291dd1e/lowlat.o \
+  $(BUILD_DIR)/release/ahs/ahs-v7-lowlat-fir-c0291dd1e/fir.o
 AHS_LIBRARY := $(BUILD_DIR)/librt_audio_ahs.a
 
 .PHONY: all component test live

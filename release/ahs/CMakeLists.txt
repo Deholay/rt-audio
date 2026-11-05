@@ -11,10 +11,11 @@ target_compile_options(rt_audio_ahs PRIVATE -Wall -Wextra -Wpedantic -Werror)
 # warnings do not fail the build; the Speex prefix keeps C symbols per release.
 set(release ahs-v7-c0291dd1e)
 set(upstream "${CMAKE_CURRENT_SOURCE_DIR}/${release}/upstream")
-# ahs-v7-split-c0291dd1e reuses this upstream, so it builds with the same flags
-# and links the same Speex object.
+# ahs-v7-split-c0291dd1e and ahs-v7-lowlat-c0291dd1e reuse this upstream, so
+# they build with the same flags and link the same Speex object.
 add_library(rt_audio_ahs_v7_c0291dd1e OBJECT
   ${release}/processor.cpp ahs-v7-split-c0291dd1e/split.cpp
+  ahs-v7-lowlat-c0291dd1e/lowlat.cpp ahs-v7-lowlat-fir-c0291dd1e/fir.cpp
   "${upstream}/third_party/speexdsp/resample.c")
 target_include_directories(rt_audio_ahs_v7_c0291dd1e SYSTEM PRIVATE
   "${upstream}/src" "${upstream}/apps" "${upstream}/third_party/speexdsp")

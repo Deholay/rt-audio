@@ -87,7 +87,7 @@ make live
 
 | opt | |
 |---|---|
-| `--processor` | `passthrough` (def) / `latest` / release. `latest` = split now. Bit-exact = `v7-c0291dd1e` |
+| `--processor` | `passthrough` (def) / `latest` / release. `latest` = lowlat-fir now. Bit-exact = `v7-c0291dd1e` |
 | `--gain` | 0..1, def 0.1 (−20 dB, = AHS) |
 | `--latency MS` | dev buffer req, 0<x≤1000; def = dev low; actual printed |
 | `--frames` | 1..2048 |
@@ -166,10 +166,12 @@ device.stop(); s->stop(); s->rethrow_if_failed();
 |---|---|---|---|
 | `v7-c0291dd1e` | callback | whole AHS in processor (Speex 48↔16, AFC, detect, notch, guard); ref = own out | bit-identical |
 | `v7-split-c0291dd1e` | split | AFC/notch/guard in cb; `HowlingDetector` in worker. Q1 `Hop` 64-smp AFC out, Q2 `Detection` ≤8 cand, all applied in order | ≠ (1 cb late), run-to-run var |
+| `v7-lowlat-c0291dd1e` | callback | = v7, pump runs engine on available smp (no 64-smp wait); engine/resampler untouched | ≠; open loop = v7 shifted 2.67 ms |
+| `v7-lowlat-fir-c0291dd1e` | callback | lowlat + linear-phase FIR 48↔16 (111/97 taps) replaces Speex Q4; passes AHS R2 | ≠ (algorithm change) |
 
-- `make_session` = all. `make_processor` = callback only (`latest` = newest callback).
+- `make_session` = all. `make_processor` = callback only (`latest` = newest callback). `latest` = `v7-lowlat-fir-c0291dd1e` today.
 - Src AHS `codex/item2-round45-20261013` @ `c0291dd1e`. `upstream/` verbatim, SHA-256 in `PROVENANCE.md`. Multi-ver: macro ns rename + Speex `RANDOM_PREFIX`.
-- Floor ≈ 8 ms est. (Speex 2 + block 4 + Speex 2). Smaller cb trims dev buffer only.
+- Codebase audio latency (impulse, open loop): v7 6.67 ms (= Speex 4.0 + 64-smp wait 2.67); lowlat 4.00 ms (Speex only); lowlat-fir **2.15 ms** (FIR 1.15 + 1.00). E2E = this + dev in/out buffer. Smaller cb trims dev buffer only.
 - New release → [SPEC §2](release/ahs/SPEC.md).
 
 ## Failure
