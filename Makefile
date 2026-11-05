@@ -30,8 +30,9 @@ AHS_OBJECTS := $(BUILD_DIR)/release/ahs/registry.o $(BUILD_DIR)/release/ahs/$(AH
 AHS_LIBRARY := $(BUILD_DIR)/librt_audio_ahs.a
 
 .PHONY: all component test live
-all: $(BUILD_DIR)/project2_sim $(BUILD_DIR)/project2_tests $(BUILD_DIR)/project3_sim $(BUILD_DIR)/project3_tests $(AHS_LIBRARY)
-component: $(CORE_LIBRARY) $(BUILD_DIR)/librt_audio_project3.a $(AHS_LIBRARY)
+all: $(BUILD_DIR)/project2_sim $(BUILD_DIR)/project2_tests $(BUILD_DIR)/project3_sim $(BUILD_DIR)/project3_tests $(AHS_LIBRARY) \
+  $(BUILD_DIR)/kcs_tests $(BUILD_DIR)/kcs_v23_equiv
+component: $(CORE_LIBRARY) $(BUILD_DIR)/librt_audio_project3.a $(AHS_LIBRARY) $(BUILD_DIR)/librt_audio_kcs.a
 
 $(BUILD_DIR)/project2/%.o: $(COMPONENT_DIR)/src/%.cpp
 	@mkdir -p "$(dir $@)"
@@ -51,6 +52,7 @@ test: all
 	./$(BUILD_DIR)/project2_sim
 	./$(BUILD_DIR)/project3_tests
 	./$(BUILD_DIR)/project3_sim
+	./$(BUILD_DIR)/kcs_tests
 
 live: $(BUILD_DIR)/project2_live $(BUILD_DIR)/project3_live
 
@@ -107,7 +109,30 @@ $(PROJECT3_DEVICE): $(PROJECT3_DIR)/backends/portaudio/portaudio_device.cpp
 $(PROJECT3_DEVICE_LIBRARY): $(PROJECT3_DEVICE)
 	$(AR) rcs $@ $^
 
-$(BUILD_DIR)/project3_live: apps/project3_live.cpp $(PROJECT3_DEVICE_LIBRARY) $(PROJECT3_LIBRARY)
-	$(CXX) $(CPPFLAGS) -I$(PROJECT3_DIR)/include $(CXXFLAGS) $^ $(LDFLAGS) $(PORTAUDIO_LIBS) -o $@
+$(BUILD_DIR)/project3_live: apps/project3_live.cpp $(PROJECT3_DEVICE_LIBRARY) $(BUILD_DIR)/librt_audio_kcs.a $(PROJECT3_LIBRARY)
+	$(CXX) $(CPPFLAGS) -I$(PROJECT3_DIR)/include -Irelease/kcs/include $(CXXFLAGS) $^ $(LDFLAGS) $(PORTAUDIO_LIBS) -o $@
 
 -include $(PROJECT3_OBJECTS:.o=.d) $(PROJECT3_DEVICE:.o=.d)
+
+# Versioned KCS releases (release/kcs/) on Project 3. Pure C++ port; the
+# Python reference under upstream/ is not compiled.
+KCS_RELEASE := kcs-v23-ce6237c12
+KCS_FLAGS := -I$(PROJECT3_DIR)/include -Irelease/kcs/include
+KCS_OBJECTS := $(BUILD_DIR)/release/kcs/registry.o $(BUILD_DIR)/release/kcs/$(KCS_RELEASE)/pipeline.o \
+  $(BUILD_DIR)/release/kcs/$(KCS_RELEASE)/processor.o
+KCS_LIBRARY := $(BUILD_DIR)/librt_audio_kcs.a
+
+$(BUILD_DIR)/release/kcs/%.o: release/kcs/%.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(CPPFLAGS) $(KCS_FLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
+
+$(KCS_LIBRARY): $(KCS_OBJECTS)
+	$(AR) rcs $@ $^
+
+$(BUILD_DIR)/kcs_tests: release/kcs/tests/kcs_tests.cpp $(KCS_LIBRARY) $(PROJECT3_LIBRARY)
+	$(CXX) $(CPPFLAGS) $(KCS_FLAGS) $(CXXFLAGS) $^ $(LDFLAGS) -o $@
+
+$(BUILD_DIR)/kcs_v23_equiv: release/kcs/$(KCS_RELEASE)/equiv_main.cpp $(BUILD_DIR)/release/kcs/$(KCS_RELEASE)/pipeline.o
+	$(CXX) $(CPPFLAGS) $(KCS_FLAGS) $(CXXFLAGS) $^ $(LDFLAGS) -o $@
+
+-include $(KCS_OBJECTS:.o=.d)

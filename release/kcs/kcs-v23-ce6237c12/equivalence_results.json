@@ -1,0 +1,357 @@
+{
+  "kcs_commit": "ce6237c124a62c79b28667aced2ee2ff6df6b1b0",
+  "upstream": {
+    "item3_bridge48k.py": {
+      "sha256": "126b3625a98fe29a748acbe4399e490f0c218ca86d7bb8cd54535b4f98a26f8b",
+      "matches_commit": true
+    },
+    "item3_hpss.py": {
+      "sha256": "4fe2753bfc007ee3b02d47fe9d16f60f234f17f7b256f2825d84174b53b3a301",
+      "matches_commit": true
+    },
+    "item3_rt.py": {
+      "sha256": "65395d90ce63eb9a26a6919983a6f65f762b76c3c85d0e89210459f2f7f2faf7",
+      "matches_commit": true
+    },
+    "item3_rt_host.py": {
+      "sha256": "d09576a89bfa73618047b85accf1c3fbc67bb52913584343f0b9041061af2c2a",
+      "matches_commit": true
+    },
+    "item3_transient.py": {
+      "sha256": "2fdc5079e1d977030be775876feaab17d98ac3a4c6cfa3c81a3cbb431e722e1c",
+      "matches_commit": true
+    },
+    "item3_transient_v17.py": {
+      "sha256": "9711a0366d2e2a23ae11694c38cfc19dfd1bb54d8fdff5cce24a3f164d9c0ead",
+      "matches_commit": true
+    },
+    "item3_transient_v23.py": {
+      "sha256": "670fd51360a4e315f5664fa35025c759fff1cdc3f977e90fd7e038f966998c31",
+      "matches_commit": true
+    }
+  },
+  "environment": {
+    "platform": "macOS-26.6-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "python": "3.14.3",
+    "numpy": "2.5.4"
+  },
+  "note": "synthetic signals only; not KCS material; equivalence, not quality",
+  "results": [
+    {
+      "signal": "tone_clicks_seed0",
+      "frames": 288000,
+      "max_abs_error": 1.4901161193847656e-08,
+      "max_error_sample_48k": 258500,
+      "max_error_core_tick": 86166,
+      "nonidentical_samples": 64,
+      "peak_abs_output": 0.5385521650314331,
+      "events_python": 16,
+      "events_cpp": 16,
+      "events_identical": true,
+      "max_r_db_error": 7.105427357601002e-15,
+      "max_s_dbfs_error": 7.105427357601002e-15,
+      "counters_identical": true,
+      "counters_python": {
+        "triggers": 16,
+        "low_energy": 0,
+        "pole_projection": 16,
+        "projected_roots": 32,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      },
+      "counters_cpp": {
+        "triggers": 16,
+        "low_energy": 0,
+        "pole_projection": 16,
+        "projected_roots": 32,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      }
+    },
+    {
+      "signal": "tone_clicks_seed1",
+      "frames": 288000,
+      "max_abs_error": 7.450580596923828e-09,
+      "max_error_sample_48k": 48710,
+      "max_error_core_tick": 16236,
+      "nonidentical_samples": 39,
+      "peak_abs_output": 0.3973795771598816,
+      "events_python": 16,
+      "events_cpp": 16,
+      "events_identical": true,
+      "max_r_db_error": 5.329070518200751e-15,
+      "max_s_dbfs_error": 7.105427357601002e-15,
+      "counters_identical": true,
+      "counters_python": {
+        "triggers": 16,
+        "low_energy": 0,
+        "pole_projection": 16,
+        "projected_roots": 64,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      },
+      "counters_cpp": {
+        "triggers": 16,
+        "low_energy": 0,
+        "pole_projection": 16,
+        "projected_roots": 64,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      }
+    },
+    {
+      "signal": "tone_clicks_seed2",
+      "frames": 288000,
+      "max_abs_error": 1.4901161193847656e-08,
+      "max_error_sample_48k": 192574,
+      "max_error_core_tick": 64191,
+      "nonidentical_samples": 26,
+      "peak_abs_output": 0.4167812466621399,
+      "events_python": 15,
+      "events_cpp": 15,
+      "events_identical": true,
+      "max_r_db_error": 7.105427357601002e-15,
+      "max_s_dbfs_error": 5.329070518200751e-15,
+      "counters_identical": true,
+      "counters_python": {
+        "triggers": 15,
+        "low_energy": 0,
+        "pole_projection": 15,
+        "projected_roots": 60,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      },
+      "counters_cpp": {
+        "triggers": 15,
+        "low_energy": 0,
+        "pole_projection": 15,
+        "projected_roots": 60,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      }
+    },
+    {
+      "signal": "tone_clicks_seed3",
+      "frames": 288000,
+      "max_abs_error": 1.862645149230957e-09,
+      "max_error_sample_48k": 252704,
+      "max_error_core_tick": 84234,
+      "nonidentical_samples": 8,
+      "peak_abs_output": 0.4422685503959656,
+      "events_python": 14,
+      "events_cpp": 14,
+      "events_identical": true,
+      "max_r_db_error": 5.329070518200751e-15,
+      "max_s_dbfs_error": 3.552713678800501e-15,
+      "counters_identical": true,
+      "counters_python": {
+        "triggers": 14,
+        "low_energy": 0,
+        "pole_projection": 14,
+        "projected_roots": 168,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      },
+      "counters_cpp": {
+        "triggers": 14,
+        "low_energy": 0,
+        "pole_projection": 14,
+        "projected_roots": 168,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      }
+    },
+    {
+      "signal": "tone_strong_clicks",
+      "frames": 288000,
+      "max_abs_error": 3.725290298461914e-09,
+      "max_error_sample_48k": 48895,
+      "max_error_core_tick": 16298,
+      "nonidentical_samples": 33,
+      "peak_abs_output": 0.1793263852596283,
+      "events_python": 12,
+      "events_cpp": 12,
+      "events_identical": true,
+      "max_r_db_error": 7.105427357601002e-15,
+      "max_s_dbfs_error": 4.440892098500626e-15,
+      "counters_identical": true,
+      "counters_python": {
+        "triggers": 12,
+        "low_energy": 0,
+        "pole_projection": 12,
+        "projected_roots": 50,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      },
+      "counters_cpp": {
+        "triggers": 12,
+        "low_energy": 0,
+        "pole_projection": 12,
+        "projected_roots": 50,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      }
+    },
+    {
+      "signal": "tone_very_strong_clicks",
+      "frames": 288000,
+      "max_abs_error": 3.725290298461914e-09,
+      "max_error_sample_48k": 168454,
+      "max_error_core_tick": 56151,
+      "nonidentical_samples": 68,
+      "peak_abs_output": 0.07587593793869019,
+      "events_python": 12,
+      "events_cpp": 12,
+      "events_identical": true,
+      "max_r_db_error": 1.4210854715202004e-14,
+      "max_s_dbfs_error": 3.1086244689504383e-15,
+      "counters_identical": true,
+      "counters_python": {
+        "triggers": 12,
+        "low_energy": 0,
+        "pole_projection": 12,
+        "projected_roots": 48,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      },
+      "counters_cpp": {
+        "triggers": 12,
+        "low_energy": 0,
+        "pole_projection": 12,
+        "projected_roots": 48,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      }
+    },
+    {
+      "signal": "silence_clicks",
+      "frames": 288000,
+      "max_abs_error": 0.0,
+      "max_error_sample_48k": 0,
+      "max_error_core_tick": 0,
+      "nonidentical_samples": 0,
+      "peak_abs_output": 0.6724642515182495,
+      "events_python": 10,
+      "events_cpp": 10,
+      "events_identical": true,
+      "max_r_db_error": 0.0,
+      "max_s_dbfs_error": 7.105427357601002e-15,
+      "counters_identical": true,
+      "counters_python": {
+        "triggers": 10,
+        "low_energy": 10,
+        "pole_projection": 0,
+        "projected_roots": 0,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 10
+      },
+      "counters_cpp": {
+        "triggers": 10,
+        "low_energy": 10,
+        "pole_projection": 0,
+        "projected_roots": 0,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 10
+      }
+    },
+    {
+      "signal": "noise",
+      "frames": 288000,
+      "max_abs_error": 0.0,
+      "max_error_sample_48k": 0,
+      "max_error_core_tick": 0,
+      "nonidentical_samples": 0,
+      "peak_abs_output": 0.11350924521684647,
+      "events_python": 0,
+      "events_cpp": 0,
+      "events_identical": true,
+      "max_r_db_error": 0.0,
+      "max_s_dbfs_error": 0.0,
+      "counters_identical": true,
+      "counters_python": {
+        "triggers": 0,
+        "low_energy": 0,
+        "pole_projection": 0,
+        "projected_roots": 0,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      },
+      "counters_cpp": {
+        "triggers": 0,
+        "low_energy": 0,
+        "pole_projection": 0,
+        "projected_roots": 0,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      }
+    },
+    {
+      "signal": "loud_clipped",
+      "frames": 288000,
+      "max_abs_error": 2.9802322387695312e-08,
+      "max_error_sample_48k": 176587,
+      "max_error_core_tick": 58862,
+      "nonidentical_samples": 26,
+      "peak_abs_output": 0.9662507176399231,
+      "events_python": 15,
+      "events_cpp": 15,
+      "events_identical": true,
+      "max_r_db_error": 5.329070518200751e-15,
+      "max_s_dbfs_error": 3.552713678800501e-15,
+      "counters_identical": true,
+      "counters_python": {
+        "triggers": 15,
+        "low_energy": 0,
+        "pole_projection": 15,
+        "projected_roots": 60,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      },
+      "counters_cpp": {
+        "triggers": 15,
+        "low_energy": 0,
+        "pole_projection": 15,
+        "projected_roots": 60,
+        "solve_failure": 0,
+        "nonfinite_prediction": 0,
+        "warmup_samples": 704,
+        "bypass": 0
+      }
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+#include <rt_audio/kcs.hpp>
 #include <rt_audio/project3.hpp>
 
 #include <rt_audio/project3/portaudio_device.hpp>
@@ -25,6 +26,8 @@ struct Options {
     int input_device = -1;
     int output_device = -1;
     double seconds = 10.0;
+    std::string processor = "passthrough";
+    bool explicit_lookahead = false, explicit_delay = false;
     bool list_devices = false;
     bool help = false;
 };
@@ -32,7 +35,7 @@ struct Options {
 void print_usage() {
     std::cout
         << "Project 3 microphone -> input SPSC -> worker -> output SPSC -> aligned playback\n"
-        << "The supplied processor is passthrough; suppression is an extension port.\n\n"
+        << "Processors: passthrough (default) or a KCS release (key-click suppression).\n\n"
         << "Usage: project3_live [options]\n"
         << "  --help                 Show this help without opening audio devices\n"
         << "  --list-devices         Enumerate PortAudio devices and exit\n"
@@ -44,6 +47,9 @@ void print_usage() {
         << "  --block-frames N        Worker hop size, 1..2048 (default: 128)\n"
         << "  --lookahead-frames N    Algorithm lookahead budget (default: 256)\n"
         << "  --delay-frames N        Fixed software delay, <=16384 (default: 512)\n"
+        << "  --processor NAME       passthrough | kcs-latest | kcs-<release> (default: passthrough)\n"
+        << "                         KCS defaults: lookahead/delay from the release (SPEC.md);\n"
+        << "                         requires 48000 Hz, mono, --frames and --block-frames <=128\n"
         << "  --seconds N            Run duration, >0 and <=86400 (default: 10)\n"
         << "Ctrl-C stops playback and joins the processing worker.\n"
         << "Use headphones for the passthrough test to avoid acoustic feedback.\n";
@@ -83,7 +89,8 @@ Options parse_options(int argc, char** argv) {
         } else {
             if (argument != "--input" && argument != "--output" && argument != "--channels" &&
                 argument != "--sample-rate" && argument != "--frames" && argument != "--seconds" &&
-                argument != "--block-frames" && argument != "--lookahead-frames" && argument != "--delay-frames") {
+                argument != "--block-frames" && argument != "--lookahead-frames" && argument != "--delay-frames" &&
+                argument != "--processor") {
                 throw std::invalid_argument("Unknown option: " + std::string(argument));
             }
             if (++index == argc) {
@@ -99,11 +106,26 @@ Options parse_options(int argc, char** argv) {
                 options.config.frames_per_buffer = static_cast<std::uint32_t>(parse_integer(value, argument));
             }
             if (argument == "--block-frames") options.config.block_frames = static_cast<std::uint32_t>(parse_integer(value, argument));
-            if (argument == "--lookahead-frames") options.config.lookahead_frames = static_cast<std::uint32_t>(parse_integer(value, argument));
-            if (argument == "--delay-frames") options.config.delay_frames = static_cast<std::uint32_t>(parse_integer(value, argument));
+            if (argument == "--lookahead-frames") {
+                options.config.lookahead_frames = static_cast<std::uint32_t>(parse_integer(value, argument));
+                options.explicit_lookahead = true;
+            }
+            if (argument == "--delay-frames") {
+                options.config.delay_frames = static_cast<std::uint32_t>(parse_integer(value, argument));
+                options.explicit_delay = true;
+            }
+            if (argument == "--processor") options.processor = std::string(value);
             if (argument == "--sample-rate") options.config.sample_rate = parse_number(value, argument);
             if (argument == "--seconds") options.seconds = parse_number(value, argument);
         }
+    }
+    if (options.processor != "passthrough") {
+        if (options.processor.rfind("kcs-", 0) != 0) {
+            throw std::invalid_argument("--processor must be passthrough or kcs-<release>");
+        }
+        const auto recommended = rt_audio::kcs::recommended_config(options.processor.substr(4));
+        if (!options.explicit_lookahead) options.config.lookahead_frames = recommended.lookahead_frames;
+        if (!options.explicit_delay) options.config.delay_frames = recommended.delay_frames;
     }
     if (options.config.channels < 1 || options.config.channels > rt_audio::project3::max_channels) {
         throw std::invalid_argument("--channels must be 1 or 2");
@@ -154,9 +176,15 @@ int run(const Options& options) {
         return 0;
     }
 
-    rt_audio::project3::PassthroughProcessor processor;
+    std::unique_ptr<rt_audio::project3::AudioProcessor> processor;
+    if (options.processor == "passthrough") {
+        processor = std::make_unique<rt_audio::project3::PassthroughProcessor>();
+    } else {
+        processor = rt_audio::kcs::make_processor(options.processor.substr(4));
+        processor->prepare(options.config); // reject configs outside the KCS spec before opening devices
+    }
     auto engine = std::make_unique<rt_audio::project3::Engine>(options.config);
-    rt_audio::project3::ProcessingWorker worker(*engine, processor);
+    rt_audio::project3::ProcessingWorker worker(*engine, *processor);
     // Declared after the worker: exception unwinding stops device callbacks first.
     rt_audio::project3::PortAudioDevice device(*engine, {options.input_device, options.output_device});
     const auto& info = device.info();
@@ -179,7 +207,7 @@ int run(const Options& options) {
                   << software_ms + 1000.0 * (info.input_latency + info.output_latency)
                   << " ms (estimate only; the <=30 ms target is not verified)\n";
     }
-    std::cout << "Passthrough only. Use headphones. Running for " << options.seconds << " seconds; Ctrl-C to stop.\n";
+    std::cout << "Processor: " << options.processor << ". Use headphones. Running for " << options.seconds << " seconds; Ctrl-C to stop.\n";
 
     std::signal(SIGINT, request_stop);
     worker.start();
