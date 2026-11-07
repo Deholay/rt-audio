@@ -150,15 +150,14 @@ def stable(release, src, path, gain_db, mode):
 
 
 def max_stable_gain(release, src, path, mode, lo=-6, hi=30):
-    """Highest gain (1 dB grid) with every gain from lo up to it stable.
-    2 dB coarse scan, then the skipped 1 dB point. None if lo already fails."""
-    best, g = None, lo
-    while g <= hi:
+    """Highest gain (1 dB grid) with every gain from lo up to it stable; None if lo fails.
+    Linear scan on purpose: loop stability is not monotonic in gain (e.g. +8 stable,
+    +7 not), so a coarse scan would skip failures and over-report."""
+    best = None
+    for g in range(lo, hi + 1):
         if not stable(release, src, path, g, mode):
-            if best is not None and g - 1 > best and stable(release, src, path, g - 1, mode):
-                best = g - 1
             return best
-        best, g = g, g + 2
+        best = g
     return best
 
 
