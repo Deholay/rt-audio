@@ -27,7 +27,7 @@ struct Options {
     int output_device = -1;
     double seconds = 10.0;
     std::string processor = "passthrough";
-    bool explicit_lookahead = false, explicit_delay = false;
+    bool explicit_lookahead = false, explicit_delay = false, explicit_frames = false, explicit_block = false;
     bool list_devices = false;
     bool help = false;
 };
@@ -48,7 +48,8 @@ void print_usage() {
         << "  --lookahead-frames N    Algorithm lookahead budget (default: 256)\n"
         << "  --delay-frames N        Fixed software delay, <=16384 (default: 512)\n"
         << "  --processor NAME       passthrough | kcs-latest | kcs-<release> (default: passthrough)\n"
-        << "                         KCS defaults: lookahead/delay from the release (SPEC.md);\n"
+        << "                         KCS defaults: --frames/--block-frames 32, lookahead = algorithm\n"
+        << "                         delay, delay = minimum for the hop (32 -> 544, 64 -> 576, 128 -> 640);\n"
         << "                         requires 48000 Hz, mono, --frames and --block-frames <=128\n"
         << "  --seconds N            Run duration, >0 and <=86400 (default: 10)\n"
         << "Ctrl-C stops playback and joins the processing worker.\n"
@@ -104,8 +105,12 @@ Options parse_options(int argc, char** argv) {
             }
             if (argument == "--frames") {
                 options.config.frames_per_buffer = static_cast<std::uint32_t>(parse_integer(value, argument));
+                options.explicit_frames = true;
             }
-            if (argument == "--block-frames") options.config.block_frames = static_cast<std::uint32_t>(parse_integer(value, argument));
+            if (argument == "--block-frames") {
+                options.config.block_frames = static_cast<std::uint32_t>(parse_integer(value, argument));
+                options.explicit_block = true;
+            }
             if (argument == "--lookahead-frames") {
                 options.config.lookahead_frames = static_cast<std::uint32_t>(parse_integer(value, argument));
                 options.explicit_lookahead = true;
@@ -123,9 +128,16 @@ Options parse_options(int argc, char** argv) {
         if (options.processor.rfind("kcs-", 0) != 0) {
             throw std::invalid_argument("--processor must be passthrough or kcs-<release>");
         }
-        const auto recommended = rt_audio::kcs::recommended_config(options.processor.substr(4));
-        if (!options.explicit_lookahead) options.config.lookahead_frames = recommended.lookahead_frames;
-        if (!options.explicit_delay) options.config.delay_frames = recommended.delay_frames;
+        const auto name = options.processor.substr(4);
+        if (!options.explicit_frames) options.config.frames_per_buffer = rt_audio::kcs::recommended_block_frames;
+        if (!options.explicit_block) options.config.block_frames = rt_audio::kcs::recommended_block_frames;
+        if (!options.explicit_lookahead) {
+            options.config.lookahead_frames = rt_audio::kcs::recommended_config(name).lookahead_frames;
+        }
+        if (!options.explicit_delay) {
+            options.config.delay_frames = rt_audio::kcs::minimum_delay_frames(
+                options.config.block_frames, options.config.frames_per_buffer, name);
+        }
     }
     if (options.config.channels < 1 || options.config.channels > rt_audio::project3::max_channels) {
         throw std::invalid_argument("--channels must be 1 or 2");

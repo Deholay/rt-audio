@@ -16,6 +16,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace p3 = rt_audio::project3;
@@ -64,9 +65,9 @@ std::vector<float> reference(const std::vector<float>& x) {
 
 void test_spec() {
     const auto ok = rt_audio::kcs::recommended_config();
-    check(ok.sample_rate == 48000.0 && ok.channels == 1 && ok.frames_per_buffer == 128 &&
-              ok.block_frames == 128 && ok.lookahead_frames == 492 && ok.delay_frames == 640,
-          "recommended config matches SPEC §0");
+    check(ok.sample_rate == 48000.0 && ok.channels == 1 && ok.frames_per_buffer == 32 &&
+              ok.block_frames == 32 && ok.lookahead_frames == 492 && ok.delay_frames == 544,
+          "recommended config matches SPEC §0 (hop 32)");
     rt_audio::kcs::make_processor()->prepare(ok);
     auto bad = [&](auto mutate, const std::string& what) {
         auto config = ok;
@@ -77,17 +78,27 @@ void test_spec() {
     bad([](p3::StreamConfig& c) { c.sample_rate = 16000.0; }, "16 kHz");
     bad([](p3::StreamConfig& c) { c.channels = 2; }, "stereo");
     bad([](p3::StreamConfig& c) { c.frames_per_buffer = 256; }, "256-frame device block");
-    bad([](p3::StreamConfig& c) { c.block_frames = 256; c.delay_frames = 768; }, "256-frame hop");
+    bad([](p3::StreamConfig& c) { c.block_frames = 256; c.delay_frames = 800; }, "256-frame hop");
     bad([](p3::StreamConfig& c) { c.lookahead_frames = 256; }, "lookahead below algorithm delay");
     expect_invalid([] { (void)rt_audio::kcs::make_processor("v22-unknown"); }, "unknown release");
     check(rt_audio::kcs::releases().back().name == "v23-ce6237c12", "latest release name");
+    // Delay = smallest callback multiple >= hop + 492 (callback divides hop), else safe bound.
+    check(rt_audio::kcs::minimum_delay_frames(128, 128) == 640, "delay hop 128");
+    check(rt_audio::kcs::minimum_delay_frames(64, 64) == 576, "delay hop 64");
+    check(rt_audio::kcs::minimum_delay_frames(32, 32) == 544, "delay hop 32");
+    check(rt_audio::kcs::minimum_delay_frames(128, 32) == 640, "delay hop 128, callback 32");
+    check(rt_audio::kcs::minimum_delay_frames(32, 128) == 32 + 492 + 127, "delay hop 32, callback 128 (bound)");
+    check(rt_audio::kcs::recommended_config("latest", 32).delay_frames == 544, "recommended hop 32");
+    expect_invalid([] { (void)rt_audio::kcs::minimum_delay_frames(256, 128); }, "hop 256");
+    expect_invalid([] { (void)rt_audio::kcs::recommended_config("latest", 0); }, "hop 0");
 }
 
 // Synchronous worker after every callback: all post-startup blocks processed,
 // output equals the bare pipeline at the fixed delay, sample by sample.
-void test_alignment(std::uint32_t callback_frames) {
-    auto config = rt_audio::kcs::recommended_config();
+void test_alignment(std::uint32_t block_frames, std::uint32_t callback_frames) {
+    auto config = rt_audio::kcs::recommended_config("latest", block_frames);
     config.frames_per_buffer = callback_frames;
+    config.delay_frames = rt_audio::kcs::minimum_delay_frames(block_frames, callback_frames);
     auto engine = std::make_unique<p3::Engine>(config);
     auto processor = rt_audio::kcs::make_processor();
     processor->prepare(config);
@@ -106,10 +117,11 @@ void test_alignment(std::uint32_t callback_frames) {
         while (engine->try_read_input(block)) processor->on_audio(block, *engine);
     }
     const auto s = engine->statistics();
-    check(mismatches == 0, "fixed-delay output equals pipeline (frames " + std::to_string(callback_frames) +
+    check(mismatches == 0, "fixed-delay output equals pipeline (hop " + std::to_string(block_frames) + ", frames " + std::to_string(callback_frames) +
                                "), mismatches=" + std::to_string(mismatches));
     check(s.fallback_frames == 0 && s.output_rejected == 0 && s.output_stale == 0,
-          "no fallback with synchronous worker (frames " + std::to_string(callback_frames) + ")");
+          "no fallback with synchronous worker (hop " + std::to_string(block_frames) + ", frames " +
+              std::to_string(callback_frames) + ")");
 }
 
 struct RecordingSink final : p3::OutputSink {
@@ -123,7 +135,7 @@ struct RecordingSink final : p3::OutputSink {
 
 // A first_sample jump restarts a fresh pipeline at the new position.
 void test_gap() {
-    const auto config = rt_audio::kcs::recommended_config();
+    const auto config = rt_audio::kcs::recommended_config("latest", 128);
     auto processor = rt_audio::kcs::make_processor();
     processor->prepare(config);
     const auto x = synthetic(48000 * 2);
@@ -162,7 +174,7 @@ void test_gap() {
 // Real ProcessingWorker, callbacks paced at 128/48000 s. Timing is machine-
 // and load-dependent: reported, not asserted beyond "some blocks processed".
 void paced_run() {
-    const auto config = rt_audio::kcs::recommended_config();
+    const auto config = rt_audio::kcs::recommended_config("latest", 128);
     auto engine = std::make_unique<p3::Engine>(config);
     auto processor = rt_audio::kcs::make_processor();
     p3::ProcessingWorker worker(*engine, *processor);
@@ -189,9 +201,10 @@ void paced_run() {
 int main() {
     try {
         test_spec();
-        test_alignment(128);
-        test_alignment(64);
-        test_alignment(32);
+        for (const auto& [hop, callback] : {std::pair{128u, 128u}, {128u, 64u}, {128u, 32u}, {64u, 64u},
+                                            {32u, 32u}, {32u, 128u}, {64u, 32u}}) {
+            test_alignment(hop, callback);
+        }
         test_gap();
         paced_run();
     } catch (const std::exception& e) {
@@ -199,6 +212,6 @@ int main() {
         return 1;
     }
     if (failures) return 1;
-    std::cout << "PASS: KCS v23 release on Project 3 (spec, alignment 128/64/32, gap restart)\n";
+    std::cout << "PASS: KCS v23 release on Project 3 (spec, delay formula, alignment hop 128/64/32, gap restart)\n";
     return 0;
 }

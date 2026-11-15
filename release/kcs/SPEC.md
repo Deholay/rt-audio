@@ -17,20 +17,22 @@
 | 量測鏈 | 有線音訊介面、實體 line out → line in loopback；裝置回報延遲不算量測 | 合約／AGENTS.md | — |
 | 每 128 點運算預算 | 128/48000 s = 2.667 ms | KCS `bridge48k_timing_prediction_v1.md` | 須單獨執行量測 |
 
-延遲預算（本 release，48 kHz frames）：
+延遲預算（本 release，48 kHz frames）。預設 hop＝callback＝**32**（2026-11-12 起；之前為 128）：
 
-| 段 | frames | ms | 性質 |
-|---|---:|---:|---|
-| 下採 FIR 群延遲 | 30 | 0.625 | 演算法，固定 |
-| v23 核心 `latency_samples` 144 @16 kHz | 432 | 9.000 | 演算法，固定 |
-| 上採 FIR 群延遲 | 30 | 0.625 | 演算法，固定 |
-| **演算法延遲 `lookahead_frames`** | **492** | **10.250** | 宣告給 Project 3 |
-| hop 對齊（source block 需輸入到 s+619，落在 s+640 結束的 block） | 128 | 2.667 | 架構 |
-| Worker 預算（一個 callback 週期） | 20 | 0.417 | 架構：640−620 |
-| **建議 `delay_frames`** | **640** | **13.333** | software delay（固定） |
-| 裝置輸入＋輸出緩衝、ADC／DAC | ? | ? | **未量測**，留給 ≤30 ms 中剩下的 16.67 ms |
+| 段 | hop 32 | hop 64 | hop 128 | 性質 |
+|---|---:|---:|---:|---|
+| 下採 FIR 群延遲 | 30 | 30 | 30 | 演算法（KCS 橋接），固定 |
+| v23 核心 `latency_samples` 144 @16 kHz | 432 | 432 | 432 | 演算法（KCS v23），固定 |
+| 上採 FIR 群延遲 | 30 | 30 | 30 | 演算法（KCS 橋接），固定 |
+| **演算法延遲 `lookahead_frames`** | **492** | **492** | **492** | 宣告給 Project 3 |
+| hop＋worker 預留 | 52 | 84 | 148 | 架構 |
+| **`delay_frames` = `minimum_delay_frames(hop, hop)`** | **544（11.33 ms）** | **576（12.00 ms）** | **640（13.33 ms）** | software delay（固定） |
+| 裝置輸入＋輸出緩衝下限 2×callback | 1.33 ms | 2.67 ms | 5.33 ms | 推算，未量測 |
+| ADC／DAC、驅動、safety offset | ? | ? | ? | **未量測** |
 
-`delay_frames=640` 時，source block `[s, s+128)` 所需的最後一個輸入在 callback m+4 擷取（s=128m），播放判斷在 callback m+5，worker 有一個 callback 週期（2.667 ms）完成。來不及時 engine 自動播放對齊原音（Project 3 契約）。
+`minimum_delay_frames(hop, cb)`：callback 整除 hop 時為 ⌈(hop+492)/cb⌉·cb，否則保守上界 hop+492+cb−1。source block `[s, s+hop)` 的最後一個所需輸入被擷取後，worker 約有一個 callback 週期（hop 32：0.667 ms）完成；來不及時 engine 播放對齊原音（Project 3 契約）。
+
+hop 只改分塊，不改演算法：三種 hop 的輸出逐 sample 相同（`kcs_tests`、notebook `kcs_rt` §4d）。即時節拍下改播原音比例（2026-11-12，Apple M5，未隔離，每種 hop 11 次，6 個 demo mix 共 36 s）：hop 128 中位 0.27%（0–0.56%）、64 中位 0.46%（0.01–2.00%）、32 中位 0.42%（0.07–1.27%）；範圍重疊，hop 32 可能略高於 128，未隔離無法定論。主要來自偶發的執行緒排程停頓（最長約 94 ms），不是運算（有觸發的 block 約 0.2 ms）。
 
 ### 0.1 本機硬體現況（2026-11-05 查核，`system_profiler SPAudioDataType`）
 
@@ -46,7 +48,7 @@ MacBook Air（Apple M5）：內建麥克風／喇叭 48 kHz、AirPods Pro（Blue
 #include <rt_audio/kcs.hpp>   // CMake target：rt_audio::kcs
 
 namespace p3 = rt_audio::project3;
-auto config = rt_audio::kcs::recommended_config();          // 48k, mono, 128, lookahead 492, delay 640
+auto config = rt_audio::kcs::recommended_config();          // 48k, mono, hop=callback 32, lookahead 492, delay 544
 auto processor = rt_audio::kcs::make_processor("latest");   // p3::AudioProcessor
 auto engine = std::make_unique<p3::Engine>(config);
 p3::ProcessingWorker worker(*engine, *processor);
@@ -57,7 +59,8 @@ p3::ProcessingWorker worker(*engine, *processor);
 |---|---|
 | `releases()` | 已登記版本，舊到新 |
 | `make_processor(name)` | `"latest"` 或 `releases()` 的 `name`；未知名稱拋 `std::invalid_argument` |
-| `recommended_config(name)` | 符合 §0 的 `StreamConfig` |
+| `recommended_config(name, hop=32)` | 符合 §0 的 `StreamConfig`；hop＝callback，delay＝`minimum_delay_frames(hop, hop)` |
+| `minimum_delay_frames(hop, callback, name)` | 給定 hop／callback（1..128）的最小固定延遲；`project3_live` 未指定 `--delay-frames` 時用它 |
 
 `prepare()` 檢查 §0 的「程式強制」欄，另要求 `lookahead_frames ≥` 該版本演算法延遲（492），不符合拋 `std::invalid_argument`。
 
