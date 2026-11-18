@@ -10,6 +10,7 @@ C++20. Two standalone components.
 - P2: AHS via `release/ahs/`. Default = passthrough.
 - P3: passthrough only. `rt_audio/project3.hpp`, ns/target `rt_audio::project3`. `./build/project3_sim`.
 - `make test` = both. `make live` = both live apps.
+- Console (shared UI, P2+P3): `python3 frontend/server.py` → http://127.0.0.1:8765. Offline A/B via `notebook/*_bridge`, live via `*_live --stats-interval-ms`.
 
 Below = P2.
 

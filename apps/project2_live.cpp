@@ -29,6 +29,7 @@ struct Options {
     std::string processor = "passthrough";
     float gain = 0.1F;
     double latency_ms = 0.0; // 0 = device default low latency
+    double stats_interval_ms = 0.0; // 0 = statistics only at exit
     bool list_devices = false;
     bool help = false;
 };
@@ -51,6 +52,8 @@ void print_usage() {
         << "  --gain G               AHS output gain, 0..1 (default: 0.1, as AHS)\n"
         << "  --latency MS           Device buffering request, >0 and <=1000 ms\n"
         << "                         (default: device low latency; result is printed)\n"
+        << "  --stats-interval-ms N  Also print the statistics line every N ms while running\n"
+        << "                         (default: 0 = only at exit)\n"
         << "Ctrl-C stops playback and joins the analysis worker.\n"
         << "Use headphones for the passthrough test to avoid acoustic feedback.\n"
         << "AHS releases (oldest first):\n";
@@ -95,7 +98,8 @@ Options parse_options(int argc, char** argv) {
         } else {
             if (argument != "--input" && argument != "--output" && argument != "--channels" &&
                 argument != "--sample-rate" && argument != "--frames" && argument != "--seconds" &&
-                argument != "--processor" && argument != "--gain" && argument != "--latency") {
+                argument != "--processor" && argument != "--gain" && argument != "--latency" &&
+                argument != "--stats-interval-ms") {
                 throw std::invalid_argument("Unknown option: " + std::string(argument));
             }
             if (++index == argc) {
@@ -114,6 +118,7 @@ Options parse_options(int argc, char** argv) {
             if (argument == "--seconds") options.seconds = parse_number(value, argument);
             if (argument == "--processor") options.processor = std::string(value);
             if (argument == "--latency") options.latency_ms = parse_number(value, argument);
+            if (argument == "--stats-interval-ms") options.stats_interval_ms = parse_number(value, argument);
             if (argument == "--gain") {
                 std::size_t consumed = 0;
                 try {
@@ -139,6 +144,7 @@ Options parse_options(int argc, char** argv) {
     }
     if (options.seconds > 86400.0) throw std::invalid_argument("--seconds exceeds 86400");
     if (options.latency_ms > 1000.0) throw std::invalid_argument("--latency exceeds 1000 ms");
+    if (options.stats_interval_ms > 60000.0) throw std::invalid_argument("--stats-interval-ms exceeds 60000");
     return options;
 }
 
@@ -225,6 +231,9 @@ int run(const Options& options) {
     std::signal(SIGINT, request_stop);
     session->start();
     device.start();
+    const auto stats_interval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+        std::chrono::duration<double, std::milli>(options.stats_interval_ms));
+    auto next_stats = std::chrono::steady_clock::now() + stats_interval;
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::duration<double>(options.seconds);
     bool stopped_early = false;
     while (!stop_requested && std::chrono::steady_clock::now() < deadline) {
@@ -233,6 +242,11 @@ int run(const Options& options) {
             break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        if (options.stats_interval_ms > 0 && std::chrono::steady_clock::now() >= next_stats) {
+            print_statistics(session->callback().statistics());
+            std::cout.flush();
+            next_stats += stats_interval;
+        }
     }
     device.stop();
     session->stop();

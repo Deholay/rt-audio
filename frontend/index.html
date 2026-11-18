@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quencher 控制台</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #fff; --ink: #1b1f24; --muted: #66707c; --line: #e2e5ea;
+  --accent: #2563eb; --accent-ink: #fff; --ok: #15803d; --warn: #b45309; --bad: #b91c1c;
+  --wave: #2563eb; --wave-dim: #c7d2e3; --marker: #b91c1c; --head: #1b1f24;
+  --radius: 10px; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1216; --panel: #171b21; --ink: #e6e9ee; --muted: #9aa4b1; --line: #2a3039;
+    --accent: #5b8cff; --accent-ink: #0b0d10; --ok: #4ade80; --warn: #fbbf24; --bad: #f87171;
+    --wave: #5b8cff; --wave-dim: #2c3a52; --marker: #f87171; --head: #e6e9ee;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 -apple-system, "PingFang TC", "Noto Sans TC", system-ui, sans-serif; }
+header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
+h1 { font-size: 18px; margin: 0; letter-spacing: .02em; }
+main { max-width: 1040px; margin: 0 auto; padding: 18px 16px 60px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--bg); }
+.seg button { border: 0; background: none; color: var(--muted); padding: 6px 14px; border-radius: 999px; font: inherit; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+.tabs button { border: 0; background: none; font: inherit; color: var(--muted); padding: 8px 14px; cursor: pointer; border-bottom: 2px solid transparent; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--accent); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+.form { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: end; }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+select, input[type=number] { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-width: 0; }
+input[type=number] { width: 96px; }
+.checks { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.checks label { font-size: 14px; color: var(--ink); display: flex; gap: 6px; align-items: center; }
+.btn { font: inherit; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); padding: 7px 18px; border-radius: 8px; cursor: pointer; }
+.btn.ghost { background: none; color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn:focus-visible, .seg button:focus-visible, .tabs button:focus-visible, .play:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+.err { color: var(--bad); font-size: 14px; margin-top: 10px; white-space: pre-wrap; }
+.track { display: grid; grid-template-columns: 40px minmax(110px, 180px) 1fr; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.track:first-child { border-top: 0; }
+.track.active .name { color: var(--accent); font-weight: 600; }
+.play { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; font-size: 13px; }
+.track.active .play { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.name { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.chip { font-size: 11px; color: var(--muted); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; font-family: var(--mono); }
+canvas.wave { width: 100%; height: 56px; display: block; cursor: pointer; border-radius: 6px; background: var(--bg); }
+.legend { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 6px; }
+.status { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.dot.on { background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 25%, transparent); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--bg); }
+.card .k { font-size: 12px; color: var(--muted); }
+.card .v { font-size: 22px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.card .r { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+.card.warn .v { color: var(--warn); } .card.bad .v { color: var(--bad); } .card.good .v { color: var(--ok); }
+pre.log { font: 12px/1.45 var(--mono); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; max-height: 180px; overflow: auto; margin: 0; white-space: pre-wrap; }
+.banner { border-left: 3px solid var(--warn); padding: 6px 10px; background: color-mix(in srgb, var(--warn) 10%, transparent); font-size: 13px; border-radius: 4px; margin-top: 10px; }
+.hidden { display: none !important; }
+.kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+@media (max-width: 640px) {
+  .track { grid-template-columns: 36px 1fr; }
+  .track canvas { grid-column: 1 / -1; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Quencher 控制台</h1>
+  <div class="seg" role="group" aria-label="系統">
+    <button data-sys="p2" aria-pressed="true">P2 嘯叫抑制</button>
+    <button data-sys="p3" aria-pressed="false">P3 按鍵噪音</button>
+  </div>
+</header>
+<main>
+  <div class="tabs" role="tablist">
+    <button role="tab" data-tab="offline" aria-selected="true">離線 A/B</button>
+    <button role="tab" data-tab="live" aria-selected="false">即時</button>
+  </div>
+
+  <section id="offline">
+    <div class="panel">
+      <div class="form">
+        <label class="f">來源 <select id="source"></select></label>
+        <div class="f"><span style="font-size:13px;color:var(--muted)">版本</span><div class="checks" id="rels"></div></div>
+        <button class="btn" id="run">執行</button>
+      </div>
+      <p class="note" id="scenario"></p>
+      <div class="err" id="offErr"></div>
+    </div>
+    <div class="panel hidden" id="results">
+      <div id="tracks"></div>
+      <div class="legend"><span id="resNote"></span><span>點波形跳轉；<span class="kbd">1</span>–<span class="kbd">9</span> 切換、<span class="kbd">空白</span> 播放/暫停，切換時保留播放位置</span></div>
+    </div>
+  </section>
+
+  <section id="live" class="hidden">
+    <div class="panel">
+      <div class="form">
+        <label class="f">輸入裝置 <select id="inDev"></select></label>
+        <label class="f">輸出裝置 <select id="outDev"></select></label>
+        <label class="f">版本 <select id="liveRel"></select></label>
+        <label class="f">frames/callback <input type="number" id="frames" min="1" max="2048" placeholder="預設"></label>
+        <label class="f">秒數 <input type="number" id="seconds" min="1" max="3600" value="60"></label>
+        <label class="f p2only">gain (0–1) <input type="number" id="gain" min="0" max="1" step="0.05" value="0.1"></label>
+        <label class="f p2only">latency ms <input type="number" id="latency" min="0.1" max="1000" placeholder="裝置預設"></label>
+        <button class="btn" id="start">開始</button>
+        <button class="btn ghost" id="stop" disabled>停止</button>
+      </div>
+      <div class="banner">請戴耳機：麥克風聲音會即時送到輸出，用喇叭可能產生真的嘯叫。</div>
+      <div class="err" id="liveErr"></div>
+    </div>
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <span class="status"><span class="dot" id="dot"></span><span id="liveState">未執行</span></span>
+        <span class="note" id="liveMeta" style="margin:0;font-family:var(--mono)"></span>
+      </div>
+      <div class="cards" id="cards"></div>
+      <p class="note">每 250 ms 更新；括號為最近一次更新的每秒速率。數值來自引擎內既有計數器。</p>
+    </div>
+    <div class="panel"><pre class="log" id="log">—</pre></div>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const state = { sys: "p2", tab: "offline", cfg: null, devices: null, tracks: [], active: -1, prevStats: null };
+const audio = new Audio();
+
+async function api(path, body) {
+  const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+// ---------- shell ----------
+document.querySelectorAll(".seg button").forEach((b) => b.onclick = () => setSystem(b.dataset.sys));
+document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => setTab(b.dataset.tab));
+
+function setSystem(sys) {
+  state.sys = sys;
+  document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.sys === sys));
+  document.querySelectorAll(".p2only").forEach((e) => e.classList.toggle("hidden", sys !== "p2"));
+  renderOfflineForm(); renderLiveForm();
+  stopAudio(); $("#results").classList.add("hidden"); $("#offErr").textContent = "";
+}
+function setTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === tab));
+  $("#offline").classList.toggle("hidden", tab !== "offline");
+  $("#live").classList.toggle("hidden", tab !== "live");
+  if (tab === "live" && !state.devices) loadDevices();
+}
+
+// ---------- offline A/B ----------
+function renderOfflineForm() {
+  const c = state.cfg[state.sys];
+  $("#source").innerHTML = c.sources.map((s) => `<option>${s}</option>`).join("");
+  if (state.sys === "p2" && c.sources.includes("speech_female")) $("#source").value = "speech_female";
+  const def = (n) => n === "passthrough" || !n.includes("split");  // split runs in real time: opt-in
+  $("#rels").innerHTML = c.releases.map((n) =>
+    `<label><input type="checkbox" value="${n}" ${def(n) ? "checked" : ""}>${n}${n.includes("split") ? "（即時速度）" : ""}</label>`).join("");
+  const sc = state.cfg.p2_scenario;
+  $("#scenario").textContent = state.sys === "p2"
+    ? `閉迴路模擬：合成回授路徑，迴路增益 ${sc.g1_db} → +${sc.g2_db} dB（第 ${sc.step_s} 秒），${sc.seconds} 秒。全部經由真實 C++ 引擎處理。`
+    : "KCS demo 案例（48 kHz）。全部經由真實 C++ 引擎（Project 3 + KCS release）處理。";
+}
+
+$("#run").onclick = async () => {
+  const releases = [...document.querySelectorAll("#rels input:checked")].map((i) => i.value);
+  $("#offErr").textContent = "";
+  if (!releases.length) { $("#offErr").textContent = "請至少選一個版本"; return; }
+  const btn = $("#run"); btn.disabled = true; btn.textContent = "處理中…";
+  stopAudio();
+  try {
+    const r = await api("/api/offline", { system: state.sys, source: $("#source").value, releases });
+    showTracks(r);
+  } catch (e) { $("#offErr").textContent = e.message; }
+  finally { btn.disabled = false; btn.textContent = "執行"; }
+};
+
+function showTracks(r) {
+  state.tracks = r.tracks; state.marker = r.marker_s; state.active = -1;
+  $("#resNote").textContent = r.note;
+  $("#tracks").innerHTML = r.tracks.map((t, i) => `
+    <div class="track" data-i="${i}">
+      <button class="play" aria-label="播放 ${t.label}">${i + 1}</button>
+      <div><div class="name">${t.label}</div><div class="chips">${Object.entries(t.stats).filter(([, v]) => v != null)
+        .map(([k, v]) => `<span class="chip">${k} ${v}</span>`).join("")}</div></div>
+      <canvas class="wave" aria-label="${t.label} 音量包絡"></canvas>
+    </div>`).join("");
+  $("#results").classList.remove("hidden");
+  document.querySelectorAll(".track").forEach((row) => {
+    const i = +row.dataset.i;
+    row.querySelector(".play").onclick = () => toggle(i);
+    row.querySelector("canvas").onclick = (ev) => {
+      const rect = ev.target.getBoundingClientRect();
+      select(i, (ev.clientX - rect.left) / rect.width * state.tracks[i].seconds, true);
+    };
+  });
+  drawAll();
+}
+
+function toggle(i) {
+  if (i === state.active && !audio.paused) { audio.pause(); return draw(i); }
+  select(i, i === state.active ? audio.currentTime : audio.currentTime || 0, true);
+}
+function select(i, at, play) {
+  const prev = state.active;
+  if (i !== prev) { audio.src = state.tracks[i].wav; state.active = i; }
+  const go = () => { audio.currentTime = Math.min(at, state.tracks[i].seconds - 0.01); if (play) audio.play(); };
+  audio.readyState >= 1 && i === prev ? go() : audio.addEventListener("loadedmetadata", go, { once: true });
+  document.querySelectorAll(".track").forEach((r) => r.classList.toggle("active", +r.dataset.i === i));
+  if (prev >= 0 && prev !== i) draw(prev);  // clear the old playhead
+}
+function stopAudio() { audio.pause(); audio.removeAttribute("src"); state.active = -1; }
+audio.addEventListener("ended", () => drawAll());
+
+document.addEventListener("keydown", (e) => {
+  if (state.tab !== "offline" || !state.tracks.length || e.target.matches("input,select")) return;
+  const n = parseInt(e.key, 10);
+  if (n >= 1 && n <= state.tracks.length) { e.preventDefault(); select(n - 1, audio.currentTime || 0, !audio.paused || state.active < 0); }
+  if (e.key === " ") { e.preventDefault(); if (state.active < 0) select(0, 0, true); else audio.paused ? audio.play() : audio.pause(); }
+});
+
+function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function draw(i) {
+  const row = document.querySelector(`.track[data-i="${i}"]`); if (!row) return;
+  const cv = row.querySelector("canvas"), t = state.tracks[i];
+  const dpr = devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== w * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  const floor = -80, n = t.env.length, maxS = Math.max(...state.tracks.map((x) => x.seconds));
+  const span = w * t.seconds / maxS, cur = i === state.active ? audio.currentTime / t.seconds : 0;
+  for (let k = 0; k < n; k++) {
+    const x = k / n * span, y = Math.max(0, (t.env[k] - floor) / -floor) * h;
+    g.fillStyle = k / n < cur ? css("--wave") : (i === state.active ? css("--wave") : css("--wave-dim"));
+    if (i === state.active && k / n >= cur) g.globalAlpha = .45; else g.globalAlpha = 1;
+    g.fillRect(x, h - y, Math.max(1, span / n), y);
+  }
+  g.globalAlpha = 1;
+  if (state.marker) { const x = state.marker / maxS * w; g.fillStyle = css("--marker"); g.fillRect(x, 0, 1, h); }
+  if (i === state.active) { g.fillStyle = css("--head"); g.fillRect(cur * span, 0, 2, h); }
+}
+function drawAll() { state.tracks.forEach((_, i) => draw(i)); }
+(function loop() { if (state.active >= 0 && !audio.paused) draw(state.active); requestAnimationFrame(loop); })();
+addEventListener("resize", drawAll);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
+
+// ---------- live ----------
+async function loadDevices() {
+  try { state.devices = await api("/api/devices"); renderLiveForm(); }
+  catch (e) { $("#liveErr").textContent = "無法列出裝置：" + e.message; }
+}
+function renderLiveForm() {
+  const c = state.cfg[state.sys];
+  $("#liveRel").innerHTML = c.releases.filter((n) => !n.includes("split") || state.sys === "p2")
+    .map((n) => `<option>${n}</option>`).join("");
+  $("#liveRel").value = c.releases[c.releases.length - 1];
+  $("#start").disabled = !c.live_ready;
+  if (!c.live_ready) $("#liveErr").textContent = "尚未建置即時程式：在 rt-audio/ 執行 make live";
+  if (!state.devices) return;
+  const opt = (d, def) => `<option value="${d.index}" ${def ? "selected" : ""}>${d.index}: ${d.name}（${d.rate / 1000} kHz）</option>`;
+  $("#inDev").innerHTML = state.devices.filter((d) => d.inputs).map((d) => opt(d, d.default_input)).join("");
+  $("#outDev").innerHTML = state.devices.filter((d) => d.outputs).map((d) => opt(d, d.default_output)).join("");
+}
+
+$("#start").onclick = async () => {
+  $("#liveErr").textContent = ""; state.prevStats = null; state.rates = {};
+  const v = (id) => $(id).value;
+  const body = { system: state.sys, release: v("#liveRel"), input: v("#inDev"), output: v("#outDev"),
+                 frames: v("#frames"), seconds: v("#seconds") };
+  if (state.sys === "p2") Object.assign(body, { gain: v("#gain"), latency: v("#latency") });
+  try { renderLive(await api("/api/live/start", body)); poll(); } catch (e) { $("#liveErr").textContent = e.message; }
+};
+$("#stop").onclick = async () => { try { renderLive(await api("/api/live/stop", {})); } catch (e) { $("#liveErr").textContent = e.message; } };
+
+let pollTimer = null;
+function poll() {
+  clearTimeout(pollTimer);
+  pollTimer = setTimeout(async () => {
+    try { const s = await api("/api/live"); renderLive(s); if (s.running) poll(); } catch { poll(); }
+  }, 250);
+}
+
+const CARD = {
+  p2: [["callbacks", "callbacks"], ["frames", "frames"], ["analysis_dropped", "分析丟棄", "bad"], ["commands_applied", "指令套用"],
+       ["commands_dropped", "指令丟棄", "bad"], ["commands_rejected", "指令拒絕", "bad"], ["input_overflows", "input overflow", "bad"], ["output_underflows", "output underflow", "bad"]],
+  p3: [["callbacks", "callbacks"], ["processed_frames", "已處理 frames", "good"], ["fallback_frames", "原音備援 frames", "warn"], ["output_late", "輸出逾時", "warn"],
+       ["output_stale", "輸出過期", "warn"], ["input_dropped", "輸入丟棄", "bad"], ["input_overflows", "input overflow", "bad"], ["output_underflows", "output underflow", "bad"]],
+};
+function renderLive(s) {
+  $("#dot").classList.toggle("on", s.running);
+  $("#start").disabled = s.running || !state.cfg[state.sys].live_ready; $("#stop").disabled = !s.running;
+  $("#liveState").textContent = s.running ? (s.stats ? `執行中 ${s.elapsed}s` : "開啟裝置中…") : s.exit_code == null ? "未執行" : s.exit_code === 0 ? "已結束" : `錯誤結束（${s.exit_code}）`;
+  $("#liveMeta").textContent = s.meta.release ? `${s.meta.system.toUpperCase()} · ${s.meta.release}` : "";
+  $("#log").textContent = s.lines.length ? s.lines.join("\n") : "—";
+  const sys = s.meta.system || state.sys, st = s.stats || {}, prev = state.prevStats;
+  if (s.stats && (!prev || st.t !== prev.t)) {  // new stats line: per-second rates vs the previous one
+    const dt = prev && st.t > prev.t ? st.t - prev.t : 0;
+    state.rates = dt ? Object.fromEntries(Object.keys(st).map((k) => [k, Math.round((st[k] - (prev[k] ?? 0)) / dt)])) : {};
+    state.prevStats = s.stats;
+  }
+  let cards = CARD[sys].map(([k, label, tone]) => {
+    const v = st[k] ?? 0, rate = state.rates?.[k] ?? null;
+    const cls = tone === "good" ? "good" : v > 0 && tone ? tone : "";
+    return `<div class="card ${cls}"><div class="k">${label}</div><div class="v">${v.toLocaleString()}</div><div class="r">${rate == null ? "&nbsp;" : `(${rate.toLocaleString()}/s)`}</div></div>`;
+  });
+  if (sys === "p3") {
+    const tot = (st.processed_frames ?? 0) + (st.fallback_frames ?? 0), pct = tot ? (100 * st.fallback_frames / tot).toFixed(1) : "0.0";
+    cards.unshift(`<div class="card ${+pct > 1 ? "warn" : "good"}"><div class="k">備援比例</div><div class="v">${pct}%</div><div class="r">fallback / (processed + fallback)</div></div>`);
+  }
+  $("#cards").innerHTML = cards.join("");
+}
+
+// ---------- boot ----------
+(async () => {
+  try {
+    state.cfg = await api("/api/config");
+    setSystem("p2");
+    const s = await api("/api/live"); renderLive(s); if (s.running) poll();
+  } catch (e) { document.body.insertAdjacentHTML("afterbegin", `<p class="err" style="padding:16px">無法連線伺服器：${e.message}</p>`); }
+})();
+</script>
+</body>
+</html>

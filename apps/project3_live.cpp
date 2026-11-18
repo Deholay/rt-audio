@@ -26,6 +26,7 @@ struct Options {
     int input_device = -1;
     int output_device = -1;
     double seconds = 10.0;
+    double stats_interval_ms = 0.0; // 0 = statistics only at exit
     std::string processor = "passthrough";
     bool explicit_lookahead = false, explicit_delay = false, explicit_frames = false, explicit_block = false;
     bool list_devices = false;
@@ -52,6 +53,8 @@ void print_usage() {
         << "                         delay, delay = minimum for the hop (32 -> 544, 64 -> 576, 128 -> 640);\n"
         << "                         requires 48000 Hz, mono, --frames and --block-frames <=128\n"
         << "  --seconds N            Run duration, >0 and <=86400 (default: 10)\n"
+        << "  --stats-interval-ms N  Also print the statistics line every N ms while running\n"
+        << "                         (default: 0 = only at exit)\n"
         << "Ctrl-C stops playback and joins the processing worker.\n"
         << "Use headphones for the passthrough test to avoid acoustic feedback.\n";
 }
@@ -91,7 +94,7 @@ Options parse_options(int argc, char** argv) {
             if (argument != "--input" && argument != "--output" && argument != "--channels" &&
                 argument != "--sample-rate" && argument != "--frames" && argument != "--seconds" &&
                 argument != "--block-frames" && argument != "--lookahead-frames" && argument != "--delay-frames" &&
-                argument != "--processor") {
+                argument != "--processor" && argument != "--stats-interval-ms") {
                 throw std::invalid_argument("Unknown option: " + std::string(argument));
             }
             if (++index == argc) {
@@ -122,6 +125,7 @@ Options parse_options(int argc, char** argv) {
             if (argument == "--processor") options.processor = std::string(value);
             if (argument == "--sample-rate") options.config.sample_rate = parse_number(value, argument);
             if (argument == "--seconds") options.seconds = parse_number(value, argument);
+            if (argument == "--stats-interval-ms") options.stats_interval_ms = parse_number(value, argument);
         }
     }
     if (options.processor != "passthrough") {
@@ -155,6 +159,7 @@ Options parse_options(int argc, char** argv) {
         throw std::invalid_argument("Delay must cover a valid hop plus lookahead, and be <=16384 frames");
     }
     if (options.seconds > 86400.0) throw std::invalid_argument("--seconds exceeds 86400");
+    if (options.stats_interval_ms > 60000.0) throw std::invalid_argument("--stats-interval-ms exceeds 60000");
     return options;
 }
 
@@ -224,6 +229,9 @@ int run(const Options& options) {
     std::signal(SIGINT, request_stop);
     worker.start();
     device.start();
+    const auto stats_interval = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+        std::chrono::duration<double, std::milli>(options.stats_interval_ms));
+    auto next_stats = std::chrono::steady_clock::now() + stats_interval;
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::duration<double>(options.seconds);
     bool stopped_early = false;
     while (!stop_requested && std::chrono::steady_clock::now() < deadline) {
@@ -232,6 +240,11 @@ int run(const Options& options) {
             break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        if (options.stats_interval_ms > 0 && std::chrono::steady_clock::now() >= next_stats) {
+            print_statistics(engine->statistics());
+            std::cout.flush();
+            next_stats += stats_interval;
+        }
     }
     device.stop();
     worker.stop();
